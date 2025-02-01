@@ -1,0 +1,78 @@
+# Example Repository Structure
+
+MyApp/
+├── .github/workflows/
+│   ├── build.yml  # GitHub Actions workflow for CI/CD
+├── backend/
+│   ├── src/
+│   ├── build.gradle  # Java backend Gradle setup
+├── frontend/
+│   ├── src/
+│   ├── package.json  # NeutralinoJS configuration
+├── launcher/
+│   ├── src/
+│   ├── Launcher.java  # Java-based Launcher
+│   ├── pom.xml  # Maven/Gradle configuration for jpackage
+├── installer/
+│   ├── package.json  # jpackage configuration for packaging the installer
+├── scripts/
+│   ├── download_jre.sh  # Bash script to fetch JRE (if needed outside jpackage)
+│   ├── package_app.sh  # Script to package everything together
+└── README.md  # Documentation for setup and usage
+
+# Basic GitHub Actions Workflow (build.yml)
+name: Build and Release
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+      
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      
+      - name: Build Java Launcher and Backend
+        run: |
+          cd launcher
+          ./gradlew build
+          cd ../backend
+          ./gradlew build
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Build JS Frontend
+        run: |
+          cd frontend
+          npm install
+          neutralino build --release
+      
+      - name: Package Everything Using jpackage
+        run: |
+          jpackage \
+            --name MyApp \
+            --input backend/build/libs \
+            --input frontend/build \
+            --main-jar launcher/build/libs/Launcher.jar \
+            --type exe \
+            --dest installer \
+            --runtime-image $(dirname $(dirname $(which java)))/jre \
+            --java-options "-Xmx512m"
+      
+      - name: Upload Installer to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            installer/MyApp.exe
